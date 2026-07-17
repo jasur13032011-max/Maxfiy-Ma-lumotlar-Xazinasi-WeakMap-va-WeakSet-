@@ -1,76 +1,86 @@
-# Maxfiy-Ma-lumotlar-Xazinasi-WeakMap-va-WeakSet-JavaScript-dagi WeakMap va WeakSet obyektlari xotira bilan samarali ishlash (Memory Management) va ma'lumotlar xavfsizligini ta'minlash uchun juda qulay. Ularning asosiy farqi — faqat obyektlarni kalit (key) yoki qiymat (value) sifatida qabul qiladi va agar obyektga boshqa hech qayerdan murojaat qolmasa, u "Garbage Collector" (axlat yig'uvchi) tomonidan xotiradan avtomatik o'chiriladi.
+# Maxfiy-Ma-lumotlar-Xazinasi-WeakMap-va-WeakSet-JavaScript**JavaScript-da Fibonachchi ketma-ketligini generatsiya qilish uchun ham Iterator (klassik uslub), ham Generator (function*) yondashuvlaridan foydalanishimiz mumkin.
 
-Siz so'ragan barcha shartlar bajarilgan to'liq va tushunarli kod namunasi quyidagicha:
+Siz so'ragan barcha talablarga (jumladan yield* va cheksiz generatorni to'xtatish shartiga) muvofiq tayyorlangan to'liq kod namunasi:
 
 JavaScript
-// --- 1. MA'LUMOTLAR OMBORINI YARATISH ---
-// Tokenlarni saqlash uchun WeakMap
-const userTokens = new WeakMap();
+// ==========================================
+// 1. CLASSIC ITERATOR: fibonacciIterator
+// ==========================================
+const fibonacciIterator = {
+  [Symbol.iterator]() {
+    let prev = 0;
+    let curr = 1;
+    let step = 0;
+    const maxSteps = 10; // To'xtash sharti: dastlabki 10 ta sonni chiqaradi
 
-// Faol sessiyalarni kuzatish uchun WeakSet
-const activeSessions = new WeakSet();
+    return {
+      next() {
+        if (step < maxSteps) {
+          const value = prev;
+          // Keyingi Fibonachchi sonini hisoblash
+          const nextValue = prev + curr;
+          prev = curr;
+          curr = nextValue;
+          step++;
+          return { value: value, done: false };
+        } else {
+          return { value: undefined, done: true };
+        }
+      }
+    };
+  }
+};
 
 
-// --- 2. FOYDALANUVCHILARNI YARATISH ---
-// Eslatma: WeakMap/WeakSet faqat obyektlar bilan ishlaydi
-let user1 = { id: 101, username: "Jasur" };
-let user2 = { id: 102, username: "Laylo" };
+// ==========================================
+// 2. GENERATORS: function* VA yield/yield*
+// ==========================================
 
-
-// --- 3. TOKЕN VA SESSIYALARNI O'RNATISH (Simulyatsiya) ---
-// Foydalanuvchilarga token biriktiramiz
-userTokens.set(user1, "JWT_TOKEN_JASUR_998877");
-userTokens.set(user2, "JWT_TOKEN_LAYLO_112233");
-
-// Foydalanuvchilarni faol sessiyalar ro'yxatiga qo'shamiz
-activeSessions.add(user1);
-activeSessions.add(user2);
-
-
-// --- 4. FUNKSIYALARNI YARATISH ---
-
-/**
- * Foydalanuvchining tokenini olib beradi
- * @param {Object} user 
- * @returns {string|undefined}
- */
-function getToken(user) {
-    return userTokens.get(user);
+// Birinchi generator: Cheksiz Fibonachchi generatori (to'g'ri to'xtash sharti bilan)
+function* infiniteFibonacciGenerator(limit) {
+  let prev = 0;
+  let curr = 1;
+  while (true) {
+    // To'xtash sharti: Agar limit berilgan bo'lsa va undan oshsa, generatsiyani tugatadi
+    if (limit !== undefined && prev > limit) {
+      return; // done: true qaytaradi
+    }
+    yield prev; // done: false bilan qiymat qaytaradi
+    const nextVal = prev + curr;
+    prev = curr;
+    curr = nextVal;
+  }
 }
 
-/**
- * Foydalanuvchi faol sessiyadami yoki yo'qligini tekshiradi
- * @param {Object} user 
- * @returns {boolean}
- */
-function isActive(user) {
-    return activeSessions.has(user);
+// Ikkinchi generator: Boshqa generatordan ma'lumotlarni delegatsiya qiluvchi (yield*) generator
+function* delegatedFibonacciGenerator() {
+  // Limit 50 gacha bo'lgan Fibonachchi sonlarini infiniteFibonacciGenerator-dan oladi
+  yield* infiniteFibonacciGenerator(50); 
 }
 
 
-// --- 5. NATIJALARNI KONSOLGA CHIQARISH ---
+// ==========================================
+// 3. AMALDA SINASH (for...of)
+// ==========================================
 
-console.log("=================== FOYDALANUVCHI 1 ===================");
-console.log(`Foydalanuvchi: ${user1.username}`);
-console.log(`Tokeni: ${getToken(user1)}`);
-console.log(`Sessiya faolmi?: ${isActive(user1) ? "Ha ✅" : "Yo'q ❌"}`);
+console.log("=== 1. Classic Iterator (Dastlabki 10 ta son) ===");
+for (const num of fibonacciIterator) {
+  console.log(num);
+}
 
-console.log("\n=================== FOYDALANUVCHI 2 ===================");
-console.log(`Foydalanuvchi: ${user2.username}`);
-console.log(`Tokeni: ${getToken(user2)}`);
-console.log(`Sessiya faolmi?: ${isActive(user2) ? "Ha ✅" : "Yo'q ❌"}`);
+console.log("\n=== 2. Cheksiz Generator (To'xtash sharti limit: 20 gacha) ===");
+// Bu yerda generator cheksiz aylanish o'rniga limit (20) ga yetganda to'xtaydi
+for (const num of infiniteFibonacciGenerator(20)) {
+  console.log(num);
+}
 
+console.log("\n=== 3. Delegated Generator (yield* yordamida limit: 50 gacha) ===");
+for (const num of delegatedFibonacciGenerator()) {
+  console.log(num);
+}
+🔍 Kod tushuntirishi:
+Symbol.iterator va next(): fibonacciIterator obyektimiz ushbu metodlar orqali standart JavaScript iteratsiya protokoli asosida qurildi. Har bir qadamda done: false va eng oxirida done: true qaytariladi.
 
-// --- 6. SESSIYANI YAKUNLASH VA O'CHIRISH (SINOV) ---
-console.log("\n=================== TIZIMDAN CHIQISH SINOVI ===================");
-console.log(`${user1.username} tizimdan chiqmoqda...`);
+yield* delegatsiyasi: delegatedFibonacciGenerator ichida yield* ishlatilib, navbatdagi qiymatlarni ishlab chiqarish vazifasi to'g'ridan-to'g'ri infiniteFibonacciGenerator zimmasiga yuklatildi.
 
-// Jasurning faol sessiyasini o'chiramiz
-activeSessions.delete(user1);
-
-console.log(`${user1.username} faolmi?: ${isActive(user1) ? "Ha ✅" : "Yo'q ❌"}`);
-console.log(`${user2.username} faolmi?: ${isActive(user2) ? "Ha ✅" : "Yo'q ❌"}`);
-💡 Nima uchun aynan WeakMap va WeakSet?
-Agar loyihamizda, masalan, user1 = null; qilib foydalanuvchini butunlay o'chirib yuborsak, oddiy Map yoki Set ishlatilganda bu foydalanuvchi xotirada baribir saqlanib qolaverardi (xotira to'lib ketishiga olib kelardi).
-
-WeakMap va WeakSet ishlatilganda esa, JavaScript ushbu foydalanuvchiga tegishli token va sessiyalarni xotiradan (Garbage Collector yordamida) avtomatik va izsiz tozalab yuboradi.
+To'g'ri to'xtash sharti: Cheksiz generator while (true) tsiklida ishlasa-da, parametr sifatida uzatilgan limit qiymatiga qarab, if (prev > limit) return; bloki yordamida tsiklni xavfsiz va to'g'ri yakunlaydi.**
