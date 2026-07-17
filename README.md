@@ -1,105 +1,101 @@
 # Maxfiy-Ma-lumotlar-Xazinasi-WeakMap-va-WeakSet-JavaScript**JavaScript-da Fibonachchi ketma-ketligini generatsiya qilish uchun ham Iterator (klassik uslub), ham Generator (function*) yondashuvlaridan foydalanishimiz mumkin.
-JavaScript-da Proxy (vositachi) va Reflect (aks ettirish) API-laridan foydalanib, obyekt ustida qat'iy nazorat (validatsiya) o'rnatishimiz mumkin. Bu usul ma'lumotlarni noto'g'ri kiritishdan himoya qilish uchun juda qulay.
+JavaScript-da Symbol — bu o'zgaruvchan bo'lmagan (immutable) va mutlaqo noyob (unikal) ma'lumot turi bo'lib, obyektrlarga xavfsiz va yashirin xususiyatlar qo'shish uchun ishlatiladi.
 
-Siz so'ragan barcha talablar (validatsiya qoidalari, Reflect metodlari, try/catch sinovlari) bajarilgan to'liq kod namunasi:
+Siz so'ragan barcha shartlar (noyob IDlar, global reyestr, toPrimitive va iterator tizimli Symbollar) to'liq bajarilgan amaliy kod namunasi:
 
 JavaScript
-// 1. ASOSIY TARGET OBYEKT (Asl ma'lumotlar saqlanadigan joy)
-const targetUser = {
-  name: "Jasur",
-  age: 20
-};
+// ========================================================
+// 1. NOYOQ IDENTIFIKATORLAR YARATISH (Symbol())
+// ========================================================
+const id1 = Symbol("user_id");
+const id2 = Symbol("user_id"); // Bir xil tavsif berilgan taqdirda ham ular farq qiladi
+const internalKey = Symbol("secret_key");
 
-// 2. HANDLER (Tuzoqlarni boshqaruvchi obyekt)
-const handler = {
-  // GET Tuzog'i: Ma'lumot o'qilayotganda ishga tushadi
-  get(target, prop) {
-    if (prop in target) {
-      return Reflect.get(target, prop);
+console.log("=== 1. Symbol Unikalligi Tekshiruvi ===");
+// Ikki xil Symbol hech qachon o'zaro teng emasligini tekshiramiz
+console.log(`id1 va id2 tengmi?: ${id1 === id2}`); // false
+console.log(`id1 turi: ${typeof id1}`); // symbol
+
+
+// ========================================================
+// 2. GLOBAL REGISTRY (Symbol.for() va Symbol.keyFor())
+// ========================================================
+console.log("\n=== 2. Global Symbol Reyestri ===");
+
+// Global registrdan Symbol yaratamiz (agar mavjud bo'lsa, o'shani oladi)
+const globalApiKey = Symbol.for("api.config.key");
+const globalApiKeyDuplicate = Symbol.for("api.config.key");
+
+// Global reyestrdagi Symbollar bir-biriga teng bo'ladi
+console.log(`Global kalitlar tengmi?: ${globalApiKey === globalApiKeyDuplicate}`); // true
+
+// Symbol.keyFor() yordamida global Symbol kalit nomini olamiz
+const keyName = Symbol.keyFor(globalApiKey);
+console.log(`Global Symbolning kalit nomi (string): "${keyName}"`); // "api.config.key"
+
+
+// ========================================================
+// 3. OBYEKTDA [Symbol.toPrimitive] METODINI QO'LLASH
+// ========================================================
+console.log("\n=== 3. [Symbol.toPrimitive] (3 ta hint sinovi) ===");
+
+const userAccount = {
+  username: "Dilshod",
+  balance: 350,
+  
+  // Obyektni har xil turlarga o'tkazish qoidasi
+  [Symbol.toPrimitive](hint) {
+    console.log(`-> Tizim so'ragan tur (hint): "${hint}"`);
+    if (hint === "number") {
+      return this.balance; // Raqam so'ralsa, balansni qaytaramiz
     }
-    // Mavjud bo'lmagan xususiyat uchun maxsus xabar qaytaramiz
-    return `Xato: "${prop}" xususiyati obyektda mavjud emas!`;
-  },
-
-  // SET Tuzog'i: Yangi ma'lumot yozilayotganda ishga tushadi
-  set(target, prop, value) {
-    // Ism validatsiyasi (string bo'lishi va kamida 2 ta harfdan iborat bo'lishi shart)
-    if (prop === "name") {
-      if (typeof value !== "string" || value.trim().length < 2) {
-        throw new TypeError("Ism kamida 2 ta harfdan iborat matn (string) bo'lishi kerak!");
-      }
+    if (hint === "string") {
+      return `Mijoz: ${this.username}`; // String so'ralsa, ismni qaytaramiz
     }
-
-    // Yosh validatsiyasi (musbat butun son va 0-120 oralig'ida bo'lishi shart)
-    if (prop === "age") {
-      if (typeof value !== "number" || !Number.isInteger(value) || value < 0 || value > 120) {
-        throw new TypeError("Yosh 0 dan 120 gacha bo'lgan butun son bo'lishi kerak!");
-      }
-    }
-
-    // Agar barcha tekshiruvlardan o'tsa, qiymatni yozamiz
-    return Reflect.set(target, prop, value);
+    // "default" holati (masalan, + operatori bilan ishlatilganda)
+    return `${this.username} (${this.balance} USD)`;
   }
 };
 
-// 3. PROXY OBYEKTINI YARATISH
-const userProxy = new Proxy(targetUser, handler);
+// Sinovlar:
+console.log(+userAccount);                    // number hint -> 350
+console.log(String(userAccount));             // string hint -> "Mijoz: Dilshod"
+console.log("Hisob ma'lumoti: " + userAccount); // default hint -> "Dilshod (350 USD)"
 
 
-// ==========================================
-// 🧪 SINOV (TESTING) QISMI
-// ==========================================
+// ========================================================
+// 4. OBYEKTDA [Symbol.iterator] METODINI QO'LLASH
+// ========================================================
+console.log("\n=== 4. [Symbol.iterator] (for...of sinovi) ===");
 
-console.log("=== 1. TO'G'RI QIYMATLAR SINOVI (Kamida 3 ta) ===");
+const myCollection = {
+  title: "Mening Kurslarim",
+  items: ["Python", "JavaScript", "PostgreSQL", "React"],
 
-try {
-  // Sinov 1: To'g'ri ism kiritish
-  userProxy.name = "Alisher";
-  console.log(`✅ Ism o'zgartirildi: ${userProxy.name}`);
+  // Obyektni iteratsiya (aylantirish) qilish imkonini beruvchi metod
+  [Symbol.iterator]() {
+    let index = 0;
+    const list = this.items;
+    
+    return {
+      next() {
+        if (index < list.length) {
+          return { value: list[index++], done: false };
+        } else {
+          return { value: undefined, done: true };
+        }
+      }
+    };
+  }
+};
 
-  // Sinov 2: To'g'ri yosh kiritish
-  userProxy.age = 25;
-  console.log(`✅ Yosh o'zgartirildi: ${userProxy.age}`);
-
-  // Sinov 3: Mavjud bo'lgan xususiyatni o'qish
-  console.log(`✅ Obyekt holati: Ismi - ${userProxy.name}, Yoshi - ${userProxy.age}`);
-} catch (error) {
-  console.error(`❌ Kutilmagan xato: ${error.message}`);
+// for...of tsikli yordamida obyektni to'g'ridan-to'g'ri aylanamiz
+for (const item of myCollection) {
+  console.log(`Kurs nomi: ${item}`);
 }
+📝 Muhim xulosalar va qoidalar:
+Xavfsiz identifikatorlar: Symbol("user_id") orqali yaratilgan xususiyatlar obyektdagi tasodifiy ustma-ust tushishlardan (collision) himoya qiladi. Chunki har bir chaqiriq mutlaqo yangi manzil yaratadi.
 
+Yashirinlik: Symbol kalitlari for...in yoki Object.keys() yordamida aylanilganda ko'rinmaydi. Ularni o'qish uchun maxsus Object.getOwnPropertySymbols() metodidan foydalanish lozim.
 
-console.log("\n=== 2. NOTO'G'RI QIYMATLAR SINOVI (Kamida 3 ta try/catch bilan) ===");
-
-// Noto'g'ri Sinov 1: Ism o'rniga raqam berish
-try {
-  console.log("Harakat: Ismga son berish (123)...");
-  userProxy.name = 123; // Xatolik berishi kerak
-} catch (error) {
-  console.log(`💡 Tutib qolingan xato: ${error.message}`);
-}
-
-// Noto'g'ri Sinov 2: Yoshga manfiy son berish
-try {
-  console.log("\nHarakat: Yoshga manfiy son berish (-5)...");
-  userProxy.age = -5; // Xatolik berishi kerak
-} catch (error) {
-  console.log(`💡 Tutib qolingan xato: ${error.message}`);
-}
-
-// Noto'g'ri Sinov 3: Yoshga string tipli qiymat berish
-try {
-  console.log("\nHarakat: Yoshga yozuv berish ('yigirma')...");
-  userProxy.age = "yigirma"; // Xatolik berishi kerak
-} catch (error) {
-  console.log(`💡 Tutib qolingan xato: ${error.message}`);
-}
-
-
-console.log("\n=== 3. MAVJUD BO'LMAGAN XUSUSIYAT SINOVI ===");
-// Obyektda yo'q xususiyatni chaqirib ko'ramiz
-console.log(userProxy.email); 
-console.log(userProxy.location);
-🔑 Asosiy tushunchalar:
-Reflect.get() va Reflect.set(): Proxy ichida maqsadli obyektning asl xatti-harakatini (qiymat olish/yozish) xavfsiz va standart usulda bajarish uchun ishlatiladi.
-
-TypeError: Kiritilgan ma'lumot turi yoki formati biz o'rnatgan qoidalarga mos kelmaganida dastur ishini buzmasdan, xatoni dasturchiga chiroyli yetkazish uchun ishlatildi.
+Tizimli Symbollar (Well-known Symbols): Symbol.toPrimitive va Symbol.iterator kabi Symbollar JavaScript dvigatelining obyektlar bilan qanday ishlashini (obyektni songa o'tkazish, for...ofda aylantirish) ichki tomondan o'zgartirish (override) imkonini beradi.
